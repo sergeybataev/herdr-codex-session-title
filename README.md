@@ -16,15 +16,17 @@ index changes.
 
 The integration uses Codex's documented top-level `notify` command and handles
 `agent-turn-complete` notifications. It uses the exact `thread-id`, reads Codex
-state locally and read-only, then sends `agent.rename` to Herdr's Unix socket.
-Nothing is sent to another service.
+state locally and read-only, and verifies that the thread is the pane's active
+session before sending `agent.rename` to Herdr's Unix socket. Child and subagent
+notifications cannot overwrite the parent session's pane title. Nothing is sent
+to another service.
 
 Python 3.11 or newer is required.
 
 ## Install
 
 ```sh
-herdr plugin install sergeybataev/herdr-codex-session-title --ref v0.0.4 --yes
+herdr plugin install sergeybataev/herdr-codex-session-title --ref v0.0.5 --yes
 herdr plugin action invoke install --plugin dev.bataev.herdr-codex-session-title
 herdr plugin action invoke watch --plugin dev.bataev.herdr-codex-session-title
 ```

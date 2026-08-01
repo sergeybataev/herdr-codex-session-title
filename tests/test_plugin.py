@@ -126,16 +126,20 @@ class CallbackTests(unittest.TestCase):
         def server():
             listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             listener.bind(socket_path)
-            listener.listen(2)
+            listener.listen(3)
             ready.set()
-            for _ in range(2):
+            for index in range(3):
                 connection, _ = listener.accept()
                 payload = b""
                 while not payload.endswith(b"\n"):
                     payload += connection.recv(65536)
                 request = json.loads(payload)
                 received.append(request)
-                connection.sendall(b'{"id":"ok","result":{}}\n')
+                if index == 0:
+                    result = {"agent": {"agent_session": {"value": thread_id}}}
+                else:
+                    result = {}
+                connection.sendall((json.dumps({"id": "ok", "result": result}) + "\n").encode())
                 connection.close()
             listener.close()
 
@@ -162,11 +166,13 @@ class CallbackTests(unittest.TestCase):
             named = self.capture_rename(directory, "named")
             indexed = self.capture_rename(directory, "indexed")
             generated = self.capture_rename(directory, "generated")
-            self.assertEqual(named[0]["method"], "agent.rename")
-            self.assertEqual(named[0]["params"], {"target": "w1:p1", "name": "explicit-name"})
-            self.assertEqual(named[1]["method"], "pane.report_metadata")
+            self.assertEqual(named[0]["method"], "agent.get")
+            self.assertEqual(named[0]["params"], {"target": "w1:p1"})
+            self.assertEqual(named[1]["method"], "agent.rename")
+            self.assertEqual(named[1]["params"], {"target": "w1:p1", "name": "explicit-name"})
+            self.assertEqual(named[2]["method"], "pane.report_metadata")
             self.assertEqual(
-                named[1]["params"],
+                named[2]["params"],
                 {
                     "pane_id": "w1:p1",
                     "source": "dev.bataev.herdr-codex-session-title",
@@ -175,10 +181,10 @@ class CallbackTests(unittest.TestCase):
                     "title": "Explicit name",
                 },
             )
-            self.assertEqual(indexed[0]["params"]["name"], "custom-indexed-name")
-            self.assertEqual(indexed[1]["params"]["display_agent"], "Custom indexed name")
-            self.assertEqual(generated[0]["params"]["name"], "generated-title")
-            self.assertEqual(generated[1]["params"]["display_agent"], "Generated title")
+            self.assertEqual(indexed[1]["params"]["name"], "custom-indexed-name")
+            self.assertEqual(indexed[2]["params"]["display_agent"], "Custom indexed name")
+            self.assertEqual(generated[1]["params"]["name"], "generated-title")
+            self.assertEqual(generated[2]["params"]["display_agent"], "Generated title")
 
     def test_herdr_name_is_valid_and_deterministic(self):
         self.assertEqual(callback.herdr_name("123 Very Long Session Title " * 3, "thread"), "codex-123-very-long-session-titl")
@@ -226,6 +232,33 @@ class CallbackTests(unittest.TestCase):
             ):
                 callback.handle('{"type":"ignored"}')
             popen.assert_not_called()
+
+    def test_child_thread_cannot_rename_parent_pane(self):
+        with tempfile.TemporaryDirectory() as directory:
+            environment = {
+                "CODEX_HOME": directory,
+                "HERDR_ENV": "1",
+                "HERDR_PANE_ID": "w1:p1",
+                "HERDR_SOCKET_PATH": os.path.join(directory, "herdr.sock"),
+            }
+            with (
+                mock.patch.dict(os.environ, environment, clear=False),
+                mock.patch.object(callback, "active_session_id", return_value="parent-thread"),
+                mock.patch.object(callback, "rename_agent") as rename_agent,
+                mock.patch.object(callback, "report_display_title") as report_display_title,
+            ):
+                callback.handle(
+                    json.dumps(
+                        {
+                            "type": "agent-turn-complete",
+                            "thread-id": "child-thread",
+                            "input-messages": ["Child title"],
+                        }
+                    )
+                )
+
+            rename_agent.assert_not_called()
+            report_display_title.assert_not_called()
 
     def test_malformed_notification_never_raises(self):
         with mock.patch.dict(os.environ, {"CODEX_HOME": tempfile.gettempdir()}, clear=False):

@@ -117,12 +117,38 @@ def send_request(socket_path, request):
     try:
         client.connect(socket_path)
         client.sendall((json.dumps(request, separators=(",", ":")) + "\n").encode())
+        payload = b""
         try:
-            client.recv(4096)
+            while not payload.endswith(b"\n") and len(payload) < 65536:
+                chunk = client.recv(4096)
+                if not chunk:
+                    break
+                payload += chunk
         except OSError:
             pass
+        try:
+            response = json.loads(payload)
+        except (UnicodeDecodeError, ValueError):
+            return None
+        return response if isinstance(response, dict) else None
     finally:
         client.close()
+
+
+def active_session_id(socket_path, pane_id):
+    response = send_request(
+        socket_path,
+        {
+            "id": "plugin:codex-active:" + uuid.uuid4().hex,
+            "method": "agent.get",
+            "params": {"target": pane_id},
+        },
+    )
+    try:
+        value = response["result"]["agent"]["agent_session"]["value"]
+    except (KeyError, TypeError):
+        return None
+    return value if isinstance(value, str) and value else None
 
 
 def rename_agent(socket_path, pane_id, name):
@@ -199,6 +225,8 @@ def handle(raw_notification):
         socket_path = os.environ.get("HERDR_SOCKET_PATH")
         thread_id = notification.get("thread-id")
         if not all(isinstance(item, str) and item for item in (pane_id, socket_path, thread_id)):
+            return
+        if active_session_id(socket_path, pane_id) != thread_id:
             return
         title = resolve_title(home, thread_id, notification)
         if title:
