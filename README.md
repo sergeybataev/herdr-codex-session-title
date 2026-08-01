@@ -4,7 +4,8 @@ This Herdr plugin mirrors the current Codex chat name into the matching Herdr
 agent and pane display names. A name set with Codex `/rename` wins; otherwise
 the generated Codex title or first user message is used. Titles are normalized
 to Herdr's lowercase, 32-character command-alias format while the readable title
-is also reported as pane display metadata.
+is compacted to at most 40 characters at a word boundary and reported as pane
+display metadata.
 
 The integration uses Codex's documented top-level `notify` command and handles
 `agent-turn-complete` notifications. It uses the exact `thread-id`, reads Codex
@@ -16,7 +17,7 @@ Python 3.11 or newer is required.
 ## Install
 
 ```sh
-herdr plugin install sergeybataev/herdr-codex-session-title --ref v0.0.2 --yes
+herdr plugin install sergeybataev/herdr-codex-session-title --ref v0.0.3 --yes
 herdr plugin action invoke install --plugin dev.bataev.herdr-codex-session-title
 ```
 

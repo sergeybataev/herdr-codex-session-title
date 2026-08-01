@@ -14,7 +14,7 @@ import uuid
 
 MAX_TITLE_CHARS = 120
 MAX_NAME_CHARS = 32
-MAX_DISPLAY_CHARS = 80
+MAX_DISPLAY_CHARS = 40
 METADATA_SOURCE = "dev.bataev.herdr-codex-session-title"
 STATE_NAME = "herdr-codex-session-title-state.json"
 
@@ -34,6 +34,16 @@ def herdr_name(title, thread_id):
         fallback = re.sub(r"[^a-z0-9]+", "", thread_id.lower())[:20] or "agent"
         name = "codex-" + (name or fallback)
     return name[:MAX_NAME_CHARS].rstrip("-")
+
+
+def display_title(title):
+    if len(title) <= MAX_DISPLAY_CHARS:
+        return title
+    prefix = title[:MAX_DISPLAY_CHARS].rstrip()
+    if title[MAX_DISPLAY_CHARS - 1].isspace() or title[MAX_DISPLAY_CHARS].isspace():
+        return prefix
+    boundary = prefix.rfind(" ")
+    return prefix[:boundary] if boundary > 0 else prefix
 
 
 def codex_home():
@@ -127,7 +137,7 @@ def rename_agent(socket_path, pane_id, name):
 
 
 def report_display_title(socket_path, pane_id, title):
-    display_title = title[:MAX_DISPLAY_CHARS]
+    compact_title = display_title(title)
     send_request(
         socket_path,
         {
@@ -137,8 +147,8 @@ def report_display_title(socket_path, pane_id, title):
                 "pane_id": pane_id,
                 "source": METADATA_SOURCE,
                 "agent": "codex",
-                "display_agent": display_title,
-                "title": display_title,
+                "display_agent": compact_title,
+                "title": compact_title,
             },
         },
     )

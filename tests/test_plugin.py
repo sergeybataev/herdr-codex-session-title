@@ -184,6 +184,20 @@ class CallbackTests(unittest.TestCase):
         self.assertEqual(callback.herdr_name("123 Very Long Session Title " * 3, "thread"), "codex-123-very-long-session-titl")
         self.assertEqual(callback.herdr_name("Привет", "019f-bee8"), "codex-019fbee8")
 
+    def test_display_title_is_compact_and_ends_at_a_word_boundary(self):
+        self.assertEqual(callback.display_title("Short title"), "Short title")
+        self.assertEqual(
+            callback.display_title("tell me about A2A, ACP etc I would like to know how"),
+            "tell me about A2A, ACP etc I would like",
+        )
+        self.assertEqual(
+            callback.display_title("short words then extraordinarilylongwordplus after"),
+            "short words then",
+        )
+        boundary = "a" * 35 + " end next"
+        self.assertEqual(callback.display_title(boundary), "a" * 35 + " end")
+        self.assertEqual(callback.display_title("x" * 60), "x" * 40)
+
     def test_previous_notifier_is_chained(self):
         with tempfile.TemporaryDirectory() as directory:
             with open(os.path.join(directory, callback.STATE_NAME), "w", encoding="utf-8") as handle:
