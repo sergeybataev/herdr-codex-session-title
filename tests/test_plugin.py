@@ -133,7 +133,11 @@ class CallbackTests(unittest.TestCase):
             while not payload.endswith(b"\n"):
                 payload += connection.recv(65536)
             received.update(json.loads(payload))
-            connection.sendall(b'{"id":"ok","result":{}}\n')
+            name = received["params"]["name"]
+            if not __import__("re").fullmatch(r"[a-z][a-z0-9_-]{0,31}", name):
+                connection.sendall(b'{"id":"error","error":{"code":"invalid_agent_name"}}\n')
+            else:
+                connection.sendall(b'{"id":"ok","result":{}}\n')
             connection.close()
             listener.close()
 
@@ -160,9 +164,13 @@ class CallbackTests(unittest.TestCase):
             named = self.capture_rename(directory, "named")
             indexed = self.capture_rename(directory, "indexed")
             generated = self.capture_rename(directory, "generated")
-            self.assertEqual(named["params"], {"target": "w1:p1", "name": "Explicit name"})
-            self.assertEqual(indexed["params"]["name"], "Custom indexed name")
-            self.assertEqual(generated["params"]["name"], "Generated title")
+            self.assertEqual(named["params"], {"target": "w1:p1", "name": "explicit-name"})
+            self.assertEqual(indexed["params"]["name"], "custom-indexed-name")
+            self.assertEqual(generated["params"]["name"], "generated-title")
+
+    def test_herdr_name_is_valid_and_deterministic(self):
+        self.assertEqual(callback.herdr_name("123 Very Long Session Title " * 3, "thread"), "codex-123-very-long-session-titl")
+        self.assertEqual(callback.herdr_name("Привет", "019f-bee8"), "codex-019fbee8")
 
     def test_previous_notifier_is_chained(self):
         with tempfile.TemporaryDirectory() as directory:

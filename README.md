@@ -2,7 +2,8 @@
 
 This Herdr plugin mirrors the current Codex chat name into the matching Herdr
 agent name. A name set with Codex `/rename` wins; otherwise the generated Codex
-title or first user message is used.
+title or first user message is used. Titles are normalized to Herdr's lowercase,
+32-character agent-name format.
 
 The integration uses Codex's documented top-level `notify` command and handles
 `agent-turn-complete` notifications. It uses the exact `thread-id`, reads Codex

@@ -4,13 +4,16 @@
 import glob
 import json
 import os
+import re
 import socket
 import sqlite3
 import subprocess
 import sys
+import unicodedata
 import uuid
 
 MAX_TITLE_CHARS = 120
+MAX_NAME_CHARS = 32
 STATE_NAME = "herdr-codex-session-title-state.json"
 
 
@@ -20,6 +23,15 @@ def clean_title(value):
     value = "".join(" " if ord(character) < 32 or ord(character) == 127 else character for character in value)
     value = " ".join(value.split())
     return value[:MAX_TITLE_CHARS] or None
+
+
+def herdr_name(title, thread_id):
+    ascii_title = unicodedata.normalize("NFKD", title).encode("ascii", "ignore").decode().lower()
+    name = re.sub(r"[^a-z0-9]+", "-", ascii_title).strip("-")
+    if not name or not name[0].isalpha():
+        fallback = re.sub(r"[^a-z0-9]+", "", thread_id.lower())[:20] or "agent"
+        name = "codex-" + (name or fallback)
+    return name[:MAX_NAME_CHARS].rstrip("-")
 
 
 def codex_home():
@@ -154,7 +166,7 @@ def handle(raw_notification):
             return
         title = resolve_title(home, thread_id, notification)
         if title:
-            rename_agent(socket_path, pane_id, title)
+            rename_agent(socket_path, pane_id, herdr_name(title, thread_id))
     finally:
         chain_previous(home, raw_notification)
 
