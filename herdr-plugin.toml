@@ -1,6 +1,6 @@
 id = "dev.bataev.herdr-codex-session-title"
 name = "Codex Session Title"
-version = "0.0.1"
+version = "0.0.2"
 min_herdr_version = "0.7.0"
 description = "Mirrors Codex chat names and generated titles into Herdr agent names"
 platforms = ["linux", "macos"]

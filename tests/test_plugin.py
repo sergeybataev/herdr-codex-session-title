@@ -120,25 +120,23 @@ class CallbackTests(unittest.TestCase):
 
     def capture_rename(self, directory, thread_id):
         socket_path = os.path.join(directory, "herdr-{}.sock".format(thread_id))
-        received = {}
+        received = []
         ready = threading.Event()
 
         def server():
             listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
             listener.bind(socket_path)
-            listener.listen(1)
+            listener.listen(2)
             ready.set()
-            connection, _ = listener.accept()
-            payload = b""
-            while not payload.endswith(b"\n"):
-                payload += connection.recv(65536)
-            received.update(json.loads(payload))
-            name = received["params"]["name"]
-            if not __import__("re").fullmatch(r"[a-z][a-z0-9_-]{0,31}", name):
-                connection.sendall(b'{"id":"error","error":{"code":"invalid_agent_name"}}\n')
-            else:
+            for _ in range(2):
+                connection, _ = listener.accept()
+                payload = b""
+                while not payload.endswith(b"\n"):
+                    payload += connection.recv(65536)
+                request = json.loads(payload)
+                received.append(request)
                 connection.sendall(b'{"id":"ok","result":{}}\n')
-            connection.close()
+                connection.close()
             listener.close()
 
         worker = threading.Thread(target=server)
@@ -164,9 +162,23 @@ class CallbackTests(unittest.TestCase):
             named = self.capture_rename(directory, "named")
             indexed = self.capture_rename(directory, "indexed")
             generated = self.capture_rename(directory, "generated")
-            self.assertEqual(named["params"], {"target": "w1:p1", "name": "explicit-name"})
-            self.assertEqual(indexed["params"]["name"], "custom-indexed-name")
-            self.assertEqual(generated["params"]["name"], "generated-title")
+            self.assertEqual(named[0]["method"], "agent.rename")
+            self.assertEqual(named[0]["params"], {"target": "w1:p1", "name": "explicit-name"})
+            self.assertEqual(named[1]["method"], "pane.report_metadata")
+            self.assertEqual(
+                named[1]["params"],
+                {
+                    "pane_id": "w1:p1",
+                    "source": "dev.bataev.herdr-codex-session-title",
+                    "agent": "codex",
+                    "display_agent": "Explicit name",
+                    "title": "Explicit name",
+                },
+            )
+            self.assertEqual(indexed[0]["params"]["name"], "custom-indexed-name")
+            self.assertEqual(indexed[1]["params"]["display_agent"], "Custom indexed name")
+            self.assertEqual(generated[0]["params"]["name"], "generated-title")
+            self.assertEqual(generated[1]["params"]["display_agent"], "Generated title")
 
     def test_herdr_name_is_valid_and_deterministic(self):
         self.assertEqual(callback.herdr_name("123 Very Long Session Title " * 3, "thread"), "codex-123-very-long-session-titl")

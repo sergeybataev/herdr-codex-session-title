@@ -14,6 +14,8 @@ import uuid
 
 MAX_TITLE_CHARS = 120
 MAX_NAME_CHARS = 32
+MAX_DISPLAY_CHARS = 80
+METADATA_SOURCE = "dev.bataev.herdr-codex-session-title"
 STATE_NAME = "herdr-codex-session-title-state.json"
 
 
@@ -99,12 +101,7 @@ def resolve_title(home, thread_id, notification):
     return explicit or indexed_name(home, thread_id) or fallback or notification_title(notification)
 
 
-def rename_agent(socket_path, pane_id, title):
-    request = {
-        "id": "plugin:codex-title:" + uuid.uuid4().hex,
-        "method": "agent.rename",
-        "params": {"target": pane_id, "name": title},
-    }
+def send_request(socket_path, request):
     client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     client.settimeout(0.5)
     try:
@@ -116,6 +113,35 @@ def rename_agent(socket_path, pane_id, title):
             pass
     finally:
         client.close()
+
+
+def rename_agent(socket_path, pane_id, name):
+    send_request(
+        socket_path,
+        {
+            "id": "plugin:codex-title:" + uuid.uuid4().hex,
+            "method": "agent.rename",
+            "params": {"target": pane_id, "name": name},
+        },
+    )
+
+
+def report_display_title(socket_path, pane_id, title):
+    display_title = title[:MAX_DISPLAY_CHARS]
+    send_request(
+        socket_path,
+        {
+            "id": "plugin:codex-display:" + uuid.uuid4().hex,
+            "method": "pane.report_metadata",
+            "params": {
+                "pane_id": pane_id,
+                "source": METADATA_SOURCE,
+                "agent": "codex",
+                "display_agent": display_title,
+                "title": display_title,
+            },
+        },
+    )
 
 
 def previous_notify(home):
@@ -167,6 +193,7 @@ def handle(raw_notification):
         title = resolve_title(home, thread_id, notification)
         if title:
             rename_agent(socket_path, pane_id, herdr_name(title, thread_id))
+            report_display_title(socket_path, pane_id, title)
     finally:
         chain_previous(home, raw_notification)
 
