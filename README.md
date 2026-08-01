@@ -7,6 +7,13 @@ to Herdr's lowercase, 32-character command-alias format while the readable title
 is compacted to at most 40 characters at a word boundary and reported as pane
 display metadata.
 
+A lightweight local watcher synchronizes existing/resumed panes when the plugin
+starts and watches Codex's session index for `/rename` changes. It prefers the
+session ID printed by `/rename`, then `codex resume <id>` process arguments, and
+only then Herdr's reported session identity. The watcher polls file metadata once
+per second and reads recent pane contents only at startup or when the session
+index changes.
+
 The integration uses Codex's documented top-level `notify` command and handles
 `agent-turn-complete` notifications. It uses the exact `thread-id`, reads Codex
 state locally and read-only, then sends `agent.rename` to Herdr's Unix socket.
@@ -17,9 +24,13 @@ Python 3.11 or newer is required.
 ## Install
 
 ```sh
-herdr plugin install sergeybataev/herdr-codex-session-title --ref v0.0.3 --yes
+herdr plugin install sergeybataev/herdr-codex-session-title --ref v0.0.4 --yes
 herdr plugin action invoke install --plugin dev.bataev.herdr-codex-session-title
+herdr plugin action invoke watch --plugin dev.bataev.herdr-codex-session-title
 ```
+
+The explicit `watch` action starts synchronization immediately in an already
+running Herdr server. Future Herdr server starts launch it automatically.
 
 Restart Codex sessions that were already running. New sessions load the notify
 command at startup. The agent name is refreshed after every completed turn.

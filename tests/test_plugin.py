@@ -232,5 +232,104 @@ class CallbackTests(unittest.TestCase):
             callback.main(["callback", "not-json"])
 
 
+class WatcherTests(unittest.TestCase):
+    def test_screen_and_resume_arguments_override_stale_herdr_session(self):
+        watcher = load_script("title_watcher", "watcher.py")
+        stale = {"agent_session": {"value": "01900000-0000-0000-0000-000000000000"}}
+        process_info = {
+            "foreground_processes": [
+                {"argv": ["codex", "resume", "01911111-1111-1111-1111-111111111111"]}
+            ]
+        }
+        screen = "Session renamed to current_name. Resume it (01922222-2222-2222-2222-222222222222)"
+
+        self.assertEqual(
+            watcher.choose_session_id(stale, process_info, screen),
+            "01922222-2222-2222-2222-222222222222",
+        )
+        self.assertEqual(
+            watcher.choose_session_id(stale, process_info, ""),
+            "01911111-1111-1111-1111-111111111111",
+        )
+        self.assertEqual(
+            watcher.choose_session_id(stale, {}, ""),
+            "01900000-0000-0000-0000-000000000000",
+        )
+
+    def test_screen_session_is_cached_until_the_process_changes(self):
+        watcher = load_script("title_watcher_cache", "watcher.py")
+        pane = {
+            "pane_id": "w3:p1",
+            "agent_session": {"value": "01900000-0000-0000-0000-000000000000"},
+        }
+        process = {
+            "foreground_process_group_id": 10,
+            "foreground_processes": [
+                {
+                    "pid": 11,
+                    "argv": ["codex", "resume", "01911111-1111-1111-1111-111111111111"],
+                }
+            ],
+        }
+        current = "01922222-2222-2222-2222-222222222222"
+        cache = {}
+
+        self.assertEqual(
+            watcher.choose_session_id(pane, process, "Session renamed to current ({})".format(current), cache),
+            current,
+        )
+        self.assertEqual(watcher.choose_session_id(pane, process, "", cache), current)
+
+        replacement = dict(process, foreground_process_group_id=20)
+        self.assertEqual(
+            watcher.choose_session_id(pane, replacement, "", cache),
+            "01911111-1111-1111-1111-111111111111",
+        )
+        self.assertNotIn("w3:p1", cache)
+
+    def test_session_cache_round_trip(self):
+        watcher = load_script("title_watcher_cache_file", "watcher.py")
+        with tempfile.TemporaryDirectory() as directory:
+            path = os.path.join(directory, "session-cache.json")
+            expected = {"w1:p1": {"process_identity": "10:11", "session_id": "thread"}}
+            watcher.save_session_cache(path, expected)
+            self.assertEqual(watcher.load_session_cache(path), expected)
+
+    def test_sync_agent_uses_resumed_session_and_reports_title(self):
+        watcher = load_script("title_watcher_sync", "watcher.py")
+        session_id = "01911111-1111-1111-1111-111111111111"
+        agent = {
+            "agent": "codex",
+            "pane_id": "w1:p3",
+            "agent_session": {"value": "01900000-0000-0000-0000-000000000000"},
+        }
+
+        def fake_herdr(*arguments, json_output=True):
+            if arguments[:2] == ("pane", "process-info"):
+                return {
+                    "result": {
+                        "process_info": {
+                            "foreground_processes": [{"argv": ["codex", "resume", session_id]}]
+                        }
+                    }
+                }
+            if arguments[:2] == ("agent", "read"):
+                return ""
+            self.fail("unexpected command: {}".format(arguments))
+
+        with (
+            mock.patch.dict(os.environ, {"HERDR_SOCKET_PATH": "/tmp/herdr.sock"}, clear=False),
+            mock.patch.object(watcher, "herdr_command", side_effect=fake_herdr),
+            mock.patch.object(watcher.callback, "resolve_title", return_value="A readable title") as resolve,
+            mock.patch.object(watcher.callback, "rename_agent") as rename,
+            mock.patch.object(watcher.callback, "report_display_title") as report,
+        ):
+            watcher.sync_agent(agent)
+
+        self.assertEqual(resolve.call_args.args[1], session_id)
+        rename.assert_called_once_with("/tmp/herdr.sock", "w1:p3", "a-readable-title")
+        report.assert_called_once_with("/tmp/herdr.sock", "w1:p3", "A readable title")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,9 +1,19 @@
 id = "dev.bataev.herdr-codex-session-title"
 name = "Codex Session Title"
-version = "0.0.3"
+version = "0.0.4"
 min_herdr_version = "0.7.0"
 description = "Mirrors compact Codex chat titles into Herdr agent and pane names"
 platforms = ["linux", "macos"]
+
+[[startup]]
+command = ["python3", "scripts/watcher.py"]
+
+[[actions]]
+id = "watch"
+title = "Start Codex title watcher"
+description = "Synchronize titles at startup and immediately after Codex /rename"
+contexts = ["workspace"]
+command = ["python3", "scripts/watcher.py"]
 
 [[actions]]
 id = "install"
