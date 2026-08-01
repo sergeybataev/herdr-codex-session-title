@@ -1,0 +1,26 @@
+id = "dev.bataev.herdr-codex-session-title"
+name = "Codex Session Title"
+version = "0.0.1"
+min_herdr_version = "0.7.0"
+description = "Mirrors Codex chat names and generated titles into Herdr agent names"
+platforms = ["linux", "macos"]
+
+[[actions]]
+id = "install"
+title = "Install Codex title notification"
+description = "Register the Codex agent-turn-complete notification callback"
+contexts = ["workspace"]
+command = ["sh", "scripts/install.sh"]
+
+[[actions]]
+id = "uninstall"
+title = "Uninstall Codex title notification"
+description = "Restore the previous Codex notification command"
+contexts = ["workspace"]
+command = ["sh", "scripts/uninstall.sh"]
+
+[[actions]]
+id = "status"
+title = "Show Codex title notification status"
+contexts = ["workspace"]
+command = ["sh", "scripts/status.sh"]
